@@ -152,13 +152,6 @@ def send_arrangement(client, chat_id):
 @bot.callback_query_handler(func=lambda callback: callback.data in ('Yes', 'No', 'Helped'))
 def process_callback(callback):
     if callback.data == 'Yes':
-        keyboard = types.InlineKeyboardMarkup()
-        keyboard.add(types.InlineKeyboardButton(text='Помогли', callback_data='Helped'))
-        bot.edit_message_reply_markup(
-            chat_id=callback.message.chat.id,
-            message_id=callback.message.message_id,
-            reply_markup=keyboard
-        )
         cursor.execute("SELECT client_id FROM assignments WHERE ps_chat_id='{0}' AND msg_id='{1}'".format(
                 callback.message.chat.id,
                 callback.message.message_id))
@@ -178,8 +171,19 @@ def process_callback(callback):
             bot.send_message(int(client_id), "Психолог @{} (это ссылка, нажмите на нее) согласился вам помочь. "
                                              "Свяжитесь как можно скорее".format(callback.from_user.username))
             bot.send_message(int(client_id), pamyatka)
+            keyboard = types.InlineKeyboardMarkup()
+            keyboard.add(types.InlineKeyboardButton(text='Помогли', callback_data='Helped'))
+            bot.edit_message_reply_markup(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id,
+                reply_markup=keyboard
+            )
         else:
             bot.send_message(callback.from_user.id, "Клиента уже взяли")
+            bot.edit_message_reply_markup(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id
+            )
     elif callback.data == 'No':
         bot.edit_message_reply_markup(
             chat_id=callback.message.chat.id,
@@ -227,6 +231,7 @@ def get_fio(message):
     bot.register_next_step_handler(message, get_client_sexes)
 
 
+#TODO Если в прошлом она фигню пишет, то здесь упадет прога, надо делать проверку
 def get_client_sexes(message):
     sexes = ("Мужчины и женщины", "Женщины", "Мужчины")
     doctors_dict[message.chat.id]['client_sex'] = sexes.index(message.text) + 1
