@@ -75,7 +75,7 @@ def get_name(message):
 
 def get_sex(message):
     clients_dict[message.chat.id]['sex'] = (3 if message.text == 'Мужской' else 2)
-    bot.send_message(message.chat.id, 'Какой у вас возраст?')
+    bot.send_message(message.chat.id, 'Какой у вас возраст? (Число цифрами, например 29)')
     bot.register_next_step_handler(message, get_age)
 
 
@@ -215,7 +215,7 @@ def review_review(message):
 
 
 def get_password(message):
-    if message.text != "1234":
+    if message.text != "15092020":
         bot.send_message(message.chat.id, "Неверный пароль")
         return
     bot.send_message(message.chat.id, "Введите ФИО")
