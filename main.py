@@ -7,7 +7,9 @@ from config import problem_types, TOKEN, db_user, db_password, pamyatka
 
 #TODO clients_dict и doctors_dict будут жрать память, пока не закончится регистрация
 #TODO предупреждать клиента, если врача не нашли, попросить поменять параметры
+#TODO сразу писать всем психологам, если клиентку взяли
 #TODO разбить все get функции на ask и save
+#TODO перевести все тексты в отдельный файл
 
 mydb = mysql.connector.connect(
     host='localhost',
