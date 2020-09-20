@@ -10,6 +10,7 @@ from config import problem_types, TOKEN, db_user, db_password, pamyatka
 #TODO сразу писать всем психологам, если клиентку взяли
 #TODO разбить все get функции на ask и save
 #TODO перевести все тексты в отдельный файл
+#TODO оставить оценку
 
 mydb = mysql.connector.connect(
     host='localhost',
@@ -29,13 +30,15 @@ cursor.execute("CREATE TABLE IF NOT EXISTS psychologists ("
 
 cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
                "chat_id VARCHAR(100), "
+               "name VARCHAR(100), "
                "city VARCHAR(100), "
                "sex INT, " #2 - жен, 3 -муж
                "age VARCHAR(30), "
                "type VARCHAR(100), "
                "description VARCHAR(300), "
                "status INT, "
-               "review VARCHAR(500))") # status 0 sent, 1 helped
+               "review_score INT, "
+               "review VARCHAR(300))") # status 0 sent, 1 helped
 
 cursor.execute("CREATE TABLE IF NOT EXISTS assignments ("
                "client_id VARCHAR(100), "
@@ -52,93 +55,138 @@ bot = telebot.TeleBot(TOKEN)
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
+    #bot.send_message(message.chat.id, text="[privet](https://www.instagram.com/perlamutrovayapena/)", parse_mode="MarkdownV2")
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     keyboard.row("Мне нужна психологическая помощь")
     keyboard.row("Я психолог")
+    keyboard.row("Политика конфиденциальности")
     bot.send_message(message.chat.id, 'Чем вам помочь?', reply_markup=keyboard)
 
 
-@bot.message_handler(func=lambda message: message.text in ("Мне нужна психологическая помощь", "Я психолог"))
+@bot.message_handler(func=lambda message: message.text in ("Мне нужна психологическая помощь",
+                                                           "Я психолог",
+                                                           "Политика конфиденциальности"))
 def path_choser(message):
-    if not message.text.startswith("Мне"):
+    if message.text.startswith("Я"):
         bot.send_message(message.chat.id, 'Введите пароль, чтобы зарегистрироваться')
         bot.register_next_step_handler(message, get_password)
-    else:
-        bot.send_message(message.chat.id, 'Как к вам обращаться')
-        bot.register_next_step_handler(message, get_name)
+    elif message.text.startswith("М"):
+        ask_client_name(message.chat.id)
+        #bot.send_message(message.chat.id, 'Как вас зовут?')
+        #bot.register_next_step_handler(message, get_name)
+    elif message.text.startswith("П"):
+        msg = bot.send_message(message.chat.id, "Здесь политика конфиденциальности")
+        start_message(msg)
 
 
-def get_name(message):
+def ask_client_name(chat_id):
+    msg = bot.send_message(chat_id, "Как вас зовут?")
+    bot.register_next_step_handler(msg, get_client_name)
+
+
+def get_client_name(message):
     clients_dict[message.chat.id]['name'] = message.text
+    ask_client_sex(message.chat.id)
+
+
+def ask_client_sex(chat_id):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for sex in ('Женский', 'Мужской'):
         keyboard.row(sex)
-    bot.send_message(message.chat.id, text='Ваш пол?', reply_markup=keyboard)
-    bot.register_next_step_handler(message, get_sex)
+    msg = bot.send_message(chat_id, text='Ваш пол?', reply_markup=keyboard)
+    bot.register_next_step_handler(msg, get_client_sex)
 
 
-def get_sex(message):
+def get_client_sex(message):
     clients_dict[message.chat.id]['sex'] = (3 if message.text == 'Мужской' else 2)
+    ask_client_lang(message.chat.id)
+
+
+def ask_client_lang(chat_id):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for lang in ('Русский', 'Казахский'):
         keyboard.row(lang)
-    bot.send_message(message.chat.id, text='Какой вы предпочитаете язык общения?', reply_markup=keyboard)
-    bot.register_next_step_handler(message, get_lang)
+    msg = bot.send_message(chat_id, text='Какой вы предпочитаете язык общения?', reply_markup=keyboard)
+    bot.register_next_step_handler(msg, get_cl_lang)
 
 
-def get_lang(message):    
+def get_cl_lang(message):    
     clients_dict[message.chat.id]['lang'] = (3 if message.text == 'Казахский' else 2)
-    bot.send_message(message.chat.id, 'Какой у вас возраст? (Число цифрами, например 29)')
-    bot.register_next_step_handler(message, get_age)
+    ask_client_age(message.chat.id)
 
 
-def get_age(message):
+def ask_client_age(chat_id):
+    msg = bot.send_message(chat_id, 'Какой ваш возраст? (напишите цифрами, например 29)')
+    bot.register_next_step_handler(msg, get_client_age)
+
+
+def get_client_age(message):
     try:
         if int(message.text) < 18:
-            bot.send_message(message.chat.id, "Если вам нет 18, напишите нам в Instagram")
+            bot.send_message(message.chat.id,
+                             text="Мы консультируем несовершеннолетних только с разрешения родителей. "
+                             "Напишите нам в [инстаграм](https://www.instagram.com/tanymproject/)",
+                             parse_mode="MarkdownV2")
             del clients_dict[message.chat.id]
             return
     except ValueError as e:
         pass
     clients_dict[message.chat.id]['age'] = message.text
-    bot.send_message(message.chat.id, 'Из какого вы города?')
-    bot.register_next_step_handler(message, get_city)
+    ask_client_city(message.chat.id)
 
 
-def get_city(message):
+def ask_client_city(chat_id):
+    msg = bot.send_message(chat_id, 'Из какого вы города?')
+    bot.register_next_step_handler(msg, get_client_city)
+
+
+def get_client_city(message):
     clients_dict[message.chat.id]['city'] = message.text
+    ask_client_problem(message.chat.id)
+
+
+def ask_client_problem(chat_id):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for problem_type in problem_types:
         keyboard.row(problem_type)
-    bot.send_message(message.chat.id,
-                     text='Какая у вас проблема? Нажмите на ячейку из списка',
-                     reply_markup=keyboard)
-    bot.register_next_step_handler(message, get_problem_type)
+    msg = bot.send_message(chat_id,
+                           text='Какая у вас проблема? Нажмите на ячейку из списка',
+                           reply_markup=keyboard)
+    bot.register_next_step_handler(msg, get_client_problem)
 
 
-def get_problem_type(message):
+def get_client_problem(message):
     clients_dict[message.chat.id]['type'] = message.text
-    bot.send_message(message.chat.id, 'Опишите вашу проблему')
-    bot.register_next_step_handler(message, get_problem_description)
+    ask_client_pr_descr(message.chat.id)
 
 
-def get_problem_description(message):
+def ask_client_pr_descr(chat_id):
+    msg = bot.send_message(message.chat.id, 'Опишите вашу проблему')
+    bot.register_next_step_handler(message, get_client_pr_descr)
+
+
+def get_client_pr_descr(message):
     clients_dict[message.chat.id]['description'] = message.text
-    register_client(clients_dict[message.chat.id], message.chat.id)
-    if send_arrangement(clients_dict[message.chat.id], message.chat.id):
-        bot.send_message(message.chat.id, 'Я отправил сообщение психологам. '
+    finish_client_registr(message.chat.id)
+
+
+def finish_client_registr(chat_id):
+    register_client(clients_dict[chat_id], chat_id)
+    if send_arrangement(clients_dict[chat_id], chat_id):
+        bot.send_message(chat_id, 'Я отправил сообщение психологам. '
                                           'Напишу вам, как кто-нибудь откликнется')
     else:
-        bot.send_message(message.chat.id, 'К сожалению для вас не нашлось психолога. '
+        bot.send_message(chat_id, 'К сожалению для вас не нашлось психолога. '
                                           'Попробуйте поменять тип проблемы или язык общения')
-    del clients_dict[message.chat.id]
+    del clients_dict[chat_id]
 
 
 def register_client(client, chat_id):
     cmd = ("INSERT INTO clients "
-          "(chat_id, city, sex, age, type, description, status, review) "
-          "VALUES (%s, %s, %s, %s, %s, %s, 0, '')")
+          "(chat_id, name, city, sex, age, type, description, status, review) "
+          "VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '')")
     vals = (chat_id,
+            client['name'][:98],
             client['city'][:98],
             client['sex'],
             client['age'][:28],
@@ -227,14 +275,28 @@ def process_callback(callback):
         if client_id != -1:
             cursor.execute("UPDATE clients SET status=1 WHERE chat_id='{}'".format(client_id))
             mydb.commit()
-            msg = bot.send_message(int(client_id), "Оставьте, пожалуйста, отзыв")
-            bot.register_next_step_handler(msg, review_review)
+            bot.send_message(int(client_id), "Не забудьте оплатить консультацию")
+            msg = bot.send_message(int(client_id), "По шкале от 1 до 5, оцените ощущения от обращения к нам. 1 - все плохо, 5 - все хорошо")
+            bot.register_next_step_handler(msg, review_score)
+
+def review_score(message):
+    score = 3
+    try:
+        score = int(message.text)
+        if score not in range(1, 6):
+            score = 3
+    except:
+        pass
+    cursor.execute("UPDATE clients SET review_score={0} WHERE chat_id={1}".format(score, message.chat.id))
+    mydb.commit()
+    msg = bot.send_message(message.chat.id, "Оставьте, пожалуйста, отызв. Они помогают нам развиваться")
+    bot.register_next_step_handler(msg, review_review)
 
 
 def review_review(message):
-    cursor.execute("UPDATE clients SET review='{}' WHERE chat_id='{}'".format(message.text[:498], message.chat.id))
+    cursor.execute("UPDATE clients SET review='{}' WHERE chat_id='{}'".format(message.text[:298], message.chat.id))
     mydb.commit()
-    bot.send_message(message.chat.id, "Спасибо за отзыв! Не забудьте оплатить консультацию")
+    bot.send_message(message.chat.id, "Спасибо за отзыв")
 
 
 def get_password(message):
@@ -242,15 +304,15 @@ def get_password(message):
         bot.send_message(message.chat.id, "Неверный пароль")
         return
     bot.send_message(message.chat.id, "Введите ФИО")
-    bot.register_next_step_handler(message, get_lang)
+    bot.register_next_step_handler(message, get_client_lang)
 
 
-def get_lang(message):
+def get_client_lang(message):
     doctors_dict[message.chat.id]['name'] = message.text
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for lang in ("Русский", "Казахский", "Русский и казахский"):
         keyboard.row(lang)
-    bot.send_message(message.chat.id, "На каком языке вы хотите общаться с клиентами?", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "На каком языке Вы хотите общаться с клиентами?", reply_markup=keyboard)
     bot.register_next_step_handler(message, get_fio)
 
 
@@ -263,7 +325,7 @@ def get_fio(message):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for row in ("Женщины", "Мужчины", "Мужчины и женщины"):
         keyboard.row(row)
-    bot.send_message(message.chat.id, "Выберите, с кем вы работаете", reply_markup=keyboard)
+    bot.send_message(message.chat.id, "Выберите, с кем Вы работаете", reply_markup=keyboard)
     bot.register_next_step_handler(message, get_client_sexes)
 
 
@@ -273,8 +335,9 @@ def get_client_sexes(message):
         doctors_dict[message.chat.id]['client_sex'] = sexes.index(message.text) + 1
     else:
         doctors_dict[message.chat.id]['client_sex'] = 1
-    choose_text = "Введите через пробел области, в которых Вы работаете (например: 3 8 13), введите 0, если не хотите ничего добавлять:\n{0}".format(
-        "\n".join("{0}) {1}".format(i + 1, name) for i, name in enumerate(problem_types)))
+    choose_text = ("Введите через пробел темы, в с которыми Вы работаете (например: 3 8 13), "
+                  "введите 0, если не хотите ничего добавлять:\n{0}".format(
+        "\n".join("{0}) {1}".format(i + 1, name) for i, name in enumerate(problem_types))))
     bot.send_message(message.chat.id, choose_text)
     bot.register_next_step_handler(message, get_expertise)
 
@@ -288,7 +351,10 @@ def get_expertise(message):
         bot.send_message(message.chat.id, "Вы ввели номера неправильно, попробуйте зарегистрироваться еще раз")
         del doctors_dict[message.chat.id]
         return
-    register_doctor(doctors_dict[message.chat.id], message.chat.id)
+    try:
+        register_doctor(doctors_dict[message.chat.id], message.chat.id)
+    except mysql.connector.Error as err:
+        bot.send_message(message.chat.id, "База данных перегружена, попробуйте снова через некоторое время")
     del doctors_dict[message.chat.id]
     bot.send_message(message.chat.id, "Вы успешно зарегистрированы")
 
