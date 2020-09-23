@@ -107,10 +107,10 @@ def ask_client_lang(chat_id):
     for lang in ('Русский', 'Казахский'):
         keyboard.row(lang)
     msg = bot.send_message(chat_id, text='Какой вы предпочитаете язык общения?', reply_markup=keyboard)
-    bot.register_next_step_handler(msg, get_cl_lang)
+    bot.register_next_step_handler(msg, get_client_lang)
 
 
-def get_cl_lang(message):    
+def get_client_lang(message):    
     clients_dict[message.chat.id]['lang'] = (3 if message.text == 'Казахский' else 2)
     ask_client_age(message.chat.id)
 
@@ -124,7 +124,7 @@ def get_client_age(message):
     try:
         if int(message.text) < 18:
             bot.send_message(message.chat.id,
-                             text="Мы консультируем несовершеннолетних только с разрешения родителей. "
+                             text="Мы консультируем несовершеннолетних только с разрешения родителей\. "
                              "Напишите нам в [инстаграм](https://www.instagram.com/tanymproject/)",
                              parse_mode="MarkdownV2")
             del clients_dict[message.chat.id]
@@ -279,6 +279,7 @@ def process_callback(callback):
             msg = bot.send_message(int(client_id), "По шкале от 1 до 5, оцените ощущения от обращения к нам. 1 - все плохо, 5 - все хорошо")
             bot.register_next_step_handler(msg, review_score)
 
+
 def review_score(message):
     score = 3
     try:
@@ -304,10 +305,10 @@ def get_password(message):
         bot.send_message(message.chat.id, "Неверный пароль")
         return
     bot.send_message(message.chat.id, "Введите ФИО")
-    bot.register_next_step_handler(message, get_client_lang)
+    bot.register_next_step_handler(message, get_psych_lang)
 
 
-def get_client_lang(message):
+def get_psych_lang(message):
     doctors_dict[message.chat.id]['name'] = message.text
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for lang in ("Русский", "Казахский", "Русский и казахский"):
