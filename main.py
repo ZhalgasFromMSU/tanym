@@ -3,7 +3,7 @@ import json
 import mysql.connector
 from telebot import types
 from collections import defaultdict
-from config import problem_types, TOKEN, db_user, db_password, pamyatka
+from config import problem_types, TOKEN, db_user, db_password, pamyatka, conf_polit
 
 #TODO clients_dict и doctors_dict будут жрать память, пока не закончится регистрация
 #TODO предупреждать клиента, если врача не нашли, попросить поменять параметры
@@ -59,7 +59,7 @@ def start_message(message):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     keyboard.row("Мне нужна психологическая помощь")
     keyboard.row("Я психолог")
-    keyboard.row("Политика конфиденциальности")
+    #keyboard.row("Политика конфиденциальности")
     bot.send_message(message.chat.id, 'Чем вам помочь?', reply_markup=keyboard)
 
 
@@ -75,7 +75,7 @@ def path_choser(message):
         #bot.send_message(message.chat.id, 'Как вас зовут?')
         #bot.register_next_step_handler(message, get_name)
     elif message.text.startswith("П"):
-        msg = bot.send_message(message.chat.id, "Здесь политика конфиденциальности")
+        msg = bot.send_message(message.chat.id, conf_polit)
         start_message(msg)
 
 
@@ -106,7 +106,7 @@ def ask_client_lang(chat_id):
     keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
     for lang in ('Русский', 'Казахский'):
         keyboard.row(lang)
-    msg = bot.send_message(chat_id, text='Какой вы предпочитаете язык общения?', reply_markup=keyboard)
+    msg = bot.send_message(chat_id, text='На каком языке вам удобнее говорить?', reply_markup=keyboard)
     bot.register_next_step_handler(msg, get_client_lang)
 
 
@@ -116,7 +116,7 @@ def get_client_lang(message):
 
 
 def ask_client_age(chat_id):
-    msg = bot.send_message(chat_id, 'Какой ваш возраст? (напишите цифрами, например 29)')
+    msg = bot.send_message(chat_id, 'Ваш возраст? (напишите цифрами, например 29)')
     bot.register_next_step_handler(msg, get_client_age)
 
 
@@ -150,7 +150,7 @@ def ask_client_problem(chat_id):
     for problem_type in problem_types:
         keyboard.row(problem_type)
     msg = bot.send_message(chat_id,
-                           text='Какая у вас проблема? Нажмите на ячейку из списка',
+                           text='Какая у вас проблема? Выберите из списка',
                            reply_markup=keyboard)
     bot.register_next_step_handler(msg, get_client_problem)
 
@@ -173,11 +173,11 @@ def get_client_pr_descr(message):
 def finish_client_registr(chat_id):
     register_client(clients_dict[chat_id], chat_id)
     if send_arrangement(clients_dict[chat_id], chat_id):
-        bot.send_message(chat_id, 'Я отправил сообщение психологам. '
-                                          'Напишу вам, как кто-нибудь откликнется')
+        bot.send_message(chat_id, "Вы ответили на все вопросы. "
+                                  "Я напишу вам, как найду подходящего психолога")
     else:
-        bot.send_message(chat_id, 'К сожалению для вас не нашлось психолога. '
-                                          'Попробуйте поменять тип проблемы или язык общения')
+        bot.send_message(chat_id, "К сожалению, я не нашел для вас психолога. "
+                                  "Попробуйте изменить тип проблемы или язык")
     del clients_dict[chat_id]
 
 
@@ -239,8 +239,8 @@ def process_callback(callback):
             mydb.commit()
             bot.send_message(callback.from_user.id, "Клиент теперь ваш. "
                                                     "Скоро с вами свяжется")
-            bot.send_message(int(client_id), "Психолог @{} (это ссылка, нажмите на нее) согласился вам помочь. "
-                                             "Свяжитесь как можно скорее".format(callback.from_user.username))
+            bot.send_message(int(client_id), "Психолог @{} (это ссылка, нажмите на нее) "
+                                             "согласился вам помочь".format(callback.from_user.username))
             bot.send_message(int(client_id), pamyatka)
             keyboard = types.InlineKeyboardMarkup()
             keyboard.add(types.InlineKeyboardButton(text='Помогли', callback_data='Helped'))
@@ -276,7 +276,8 @@ def process_callback(callback):
             cursor.execute("UPDATE clients SET status=1 WHERE chat_id='{}'".format(client_id))
             mydb.commit()
             bot.send_message(int(client_id), "Не забудьте оплатить консультацию")
-            msg = bot.send_message(int(client_id), "По шкале от 1 до 5, оцените ощущения от обращения к нам. 1 - все плохо, 5 - все хорошо")
+            msg = bot.send_message(int(client_id), "По шкале от 1 до 3, оцените ваши ощущения от обращения\n"
+                                                   "1 - не очень, 2 - хорошо, 3 - отлично")
             bot.register_next_step_handler(msg, review_score)
 
 
@@ -290,14 +291,16 @@ def review_score(message):
         pass
     cursor.execute("UPDATE clients SET review_score={0} WHERE chat_id={1}".format(score, message.chat.id))
     mydb.commit()
-    msg = bot.send_message(message.chat.id, "Оставьте, пожалуйста, отызв. Они помогают нам развиваться")
+    msg = bot.send_message(message.chat.id, "Оставьте, пожалуйста, отзыв. Они помогают нам развиваться")
     bot.register_next_step_handler(msg, review_review)
 
 
 def review_review(message):
     cursor.execute("UPDATE clients SET review='{}' WHERE chat_id='{}'".format(message.text[:298], message.chat.id))
     mydb.commit()
-    bot.send_message(message.chat.id, "Спасибо за отзыв")
+    bot.send_message(message.chat.id,
+                     text="Спасибо за отзыв\! Подписывайтесь на наш [инстаграм](https://www.instagram.com/tanymproject/)",
+                     parse_mode="MarkdownV2")
 
 
 def get_password(message):
