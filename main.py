@@ -161,8 +161,8 @@ def get_client_problem(message):
 
 
 def ask_client_pr_descr(chat_id):
-    msg = bot.send_message(message.chat.id, 'Опишите вашу проблему')
-    bot.register_next_step_handler(message, get_client_pr_descr)
+    msg = bot.send_message(chat_id, 'Опишите вашу проблему')
+    bot.register_next_step_handler(msg, get_client_pr_descr)
 
 
 def get_client_pr_descr(message):
