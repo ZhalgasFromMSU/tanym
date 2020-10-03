@@ -296,6 +296,8 @@ def review_score(message):
 
 
 def review_review(message):
+    if message.text is None:
+        message.text = 'no review'
     cursor.execute("UPDATE clients SET review='{}' WHERE chat_id='{}'".format(message.text[:298], message.chat.id))
     mydb.commit()
     bot.send_message(message.chat.id,
