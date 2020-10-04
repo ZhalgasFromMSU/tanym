@@ -272,7 +272,7 @@ def botactions():
                 keyboard.add(types.InlineKeyboardButton(text='Отказываюсь', callback_data='Reject'))
                 bot.send_message(int(client_id), pamyatka, reply_markup=keyboard)
             else:
-                bot.answer_callback_query(callback_query_id=callback.id, text="Клиента уже взяли")
+                bot.answer_callback_query(callback_query_id=callback.id, text="Занят")
         elif callback.data == 'No':
             bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
@@ -287,9 +287,9 @@ def botactions():
             for i, *_ in cursor:
                 client_id = i
             if client_id == -1:
-                ans_text = "Клиента уже взяли"
+                ans_text = "Занят"
             else:
-                ans_text = "Клиента еще не взяли"
+                ans_text = "Свободен"
             bot.answer_callback_query(callback_query_id=callback.id, text=ans_text)
 
 
@@ -308,6 +308,11 @@ def botactions():
                                                    "1 - не очень, 2 - хорошо, 3 - отлично")
             bot.register_next_step_handler(msg, review_score)
         elif callback.data == 'Reject':
+            cursor.execute("SELECT ps_chat_id, msg_id FROM assignments WHERE client_id={}".format(client_id))
+            for ps_chat, msg_id in cursor:
+                bot.send_message(int(ps_chat),
+                                 text="Этот клиент отказался от консультации",
+                                 reply_to_message_id=int(msg_id))
             cursor.execute("DELETE FROM clients WHERE chat_id={}".format(client_id))
             cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
             mydb.commit()
