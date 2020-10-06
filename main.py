@@ -266,8 +266,8 @@ def botactions():
                                                       callback.message.chat.id,
                                                       callback.message.message_id))
                 mydb.commit()
-                bot.send_message(callback.from_user.id, "Клиент теперь ваш. "
-                                                        "Скоро с вами свяжется")
+                bot.answer_callback_query(callback_query_id=callback.id, text="Клиент теперь ваш. "
+                                                                              "Скоро с вами свяжется")
                 bot.send_message(int(client_id), "Психолог @{} (это ссылка, нажмите на нее) "
                                                  "согласился вам помочь".format(callback.from_user.username))
                 keyboard = types.InlineKeyboardMarkup()
