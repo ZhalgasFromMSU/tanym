@@ -244,11 +244,14 @@ def botactions():
 
     @bot.callback_query_handler(func=lambda callback: callback.data in ('Yes', 'No', 'Status'))
     def process_callback_psych(callback):
+        if callback.data == 'Yes' or callback.data == 'No':
+            try:
+                bot.edit_message_reply_markup(
+                    chat_id=callback.message.chat.id,
+                    message_id=callback.message.message_id)
+            except Exception:
+                pass
         if callback.data == 'Yes':
-            bot.edit_message_reply_markup(
-                chat_id=callback.message.chat.id,
-                message_id=callback.message.message_id,
-            )
             cursor.execute("SELECT client_id FROM assignments WHERE ps_chat_id='{0}' AND msg_id='{1}'".format(
                     callback.message.chat.id,
                     callback.message.message_id))
@@ -273,11 +276,6 @@ def botactions():
                 bot.send_message(int(client_id), pamyatka, reply_markup=keyboard)
             else:
                 bot.answer_callback_query(callback_query_id=callback.id, text="Занят")
-        elif callback.data == 'No':
-            bot.edit_message_reply_markup(
-                chat_id=callback.message.chat.id,
-                message_id=callback.message.message_id
-            )
         elif callback.data == "Status":
             cursor.execute(
                 "SELECT client_id FROM assignments WHERE ps_chat_id={0} AND msg_id={1}".format(
@@ -295,10 +293,12 @@ def botactions():
 
     @bot.callback_query_handler(func=lambda callback: callback.data in ('Reject', 'Helped'))
     def process_callback_client(callback):
-        bot.edit_message_reply_markup(
-            chat_id=callback.message.chat.id,
-            message_id=callback.message.message_id,
-        )
+        try:
+            bot.edit_message_reply_markup(
+                chat_id=callback.message.chat.id,
+                message_id=callback.message.message_id)
+        except Exception:
+            pass
         client_id = callback.message.chat.id
         if callback.data == 'Helped':
             cursor.execute("UPDATE clients SET status=1 WHERE chat_id={}".format(client_id))
