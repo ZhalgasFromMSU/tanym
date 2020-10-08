@@ -339,6 +339,10 @@ def botactions():
         bot.send_message(message.chat.id,
                          text="Спасибо за отзыв\! Подписывайтесь на наш [инстаграм](https://www.instagram.com/tanymproject/)",
                          parse_mode="MarkdownV2")
+        sticker = message.chat.id % 4 + 1
+        stick = open("stickers/end{}.webp".format(sticker), 'rb')
+        bot.send_sticker(message.chat.id, stick)
+        stick.close()
 
 
     def get_password(message):
