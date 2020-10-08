@@ -76,28 +76,32 @@ def start_polling():
 def botactions():
     @bot.message_handler(commands=['start'])
     def start_message(message):
-        #bot.send_message(message.chat.id, text="[privet](https://www.instagram.com/perlamutrovayapena/)", parse_mode="MarkdownV2")
         keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         keyboard.row("Мне нужна психологическая помощь")
         keyboard.row("Я психолог")
-        #keyboard.row("Политика конфиденциальности")
         bot.send_message(message.chat.id, 'Чем вам помочь?', reply_markup=keyboard)
 
 
     @bot.message_handler(func=lambda message: message.text in ("Мне нужна психологическая помощь",
-                                                               "Я психолог",
-                                                               "Политика конфиденциальности"))
+                                                               "Я психолог"))
     def path_choser(message):
         if message.text.startswith("Я"):
             bot.send_message(message.chat.id, 'Введите пароль, чтобы зарегистрироваться')
             bot.register_next_step_handler(message, get_password)
         elif message.text.startswith("М"):
+            cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(message.chat.id))
+            status = -1
+            for st, *_ in cursor:
+                status = st
+            if status == 1:
+                bot.send_message(message.chat.id, "Вы уже обращались в Таным. "
+                                                  "В рамках проекта вы можете записаться только один раз")
+                return
+            else:
+                cursor.execute("DELETE FROM clients WHERE chat_id={}".format(message.chat.id))
+                cursor.execute("DELETE FROM assignments WHERE client_id={}".format(message.chat.id))
+                mydb.commit()
             ask_client_name(message.chat.id)
-            #bot.send_message(message.chat.id, 'Как вас зовут?')
-            #bot.register_next_step_handler(message, get_name)
-        elif message.text.startswith("П"):
-            msg = bot.send_message(message.chat.id, conf_polit)
-            start_message(msg)
 
 
     def ask_client_name(chat_id):
@@ -242,9 +246,9 @@ def botactions():
         return True
 
 
-    @bot.callback_query_handler(func=lambda callback: callback.data in ('Yes', 'No', 'Status'))
+    @bot.callback_query_handler(func=lambda callback: callback.data in ('Yes', 'No', 'Status', 'Ignore'))
     def process_callback_psych(callback):
-        if callback.data == 'Yes' or callback.data == 'No':
+        if callback.data != 'Status':
             try:
                 bot.edit_message_reply_markup(
                     chat_id=callback.message.chat.id,
@@ -259,6 +263,13 @@ def botactions():
             for i, *_ in cursor:
                 client_id = i
             if client_id != -1:
+                cursor.execute("SELECT ps_chat_id, msg_id FROM assignments WHERE client_id={}".format(client_id))
+                for ps_chat, msg_id in cursor:
+                    if int(ps_chat) != int(callback.message.chat.id):
+                        try:
+                            bot.delete_message(int(ps_chat), int(msg_id))
+                        except Exception:
+                            pass
                 cursor.execute("DELETE FROM assignments WHERE "
                                "client_id='{0}' AND "
                                "ps_chat_id!='{1}' AND "
@@ -274,6 +285,15 @@ def botactions():
                 keyboard.add(types.InlineKeyboardButton(text='Консультация прошла', callback_data='Helped'))
                 keyboard.add(types.InlineKeyboardButton(text='Отказываюсь', callback_data='Reject'))
                 bot.send_message(int(client_id), pamyatka, reply_markup=keyboard)
+                keyboard_ps = types.InlineKeyboardMarkup()
+                keyboard_ps.add(types.InlineKeyboardButton(text='Клиент не написал', callback_data='Ignore'))
+                try:
+                    bot.edit_message_reply_markup(
+                        chat_id=callback.message.chat.id,
+                        message_id=callback.message.message_id,
+                        reply_markup=keyboard_ps)
+                except Exception:
+                    pass
             else:
                 bot.answer_callback_query(callback_query_id=callback.id, text="Занят")
         elif callback.data == "Status":
@@ -289,6 +309,18 @@ def botactions():
             else:
                 ans_text = "Свободен"
             bot.answer_callback_query(callback_query_id=callback.id, text=ans_text)
+        elif callback.data == "Ignore":
+            cursor.execute(
+                "SELECT client_id FROM assignments WHERE ps_chat_id={0} AND msg_id={1}".format(
+                    callback.message.chat.id,
+                    callback.message.message_id))
+            for client_id, *_ in cursor:
+                bot.send_message(int(client_id), "Ваш запрос удалился, потому что вы не связались с "
+                                                 "в течение дня. Но вы можете записаться снова")
+                cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
+                cursor.execute("DELETE FROM clients WHERE chat_id={}".format(client_id))
+                mydb.commit()
+                bot.delete_message(callback.message.chat.id, callback.message.message_id)
 
 
     @bot.callback_query_handler(func=lambda callback: callback.data in ('Reject', 'Helped'))
@@ -300,6 +332,12 @@ def botactions():
         except Exception:
             pass
         client_id = callback.message.chat.id
+        checker = -1
+        cursor.execute("SELECT * FROM assignments WHERE client_id={}".format(client_id))
+        for cl, *_ in cursor:
+            checker = cl
+        if int(checker) != int(client_id):
+            return
         if callback.data == 'Helped':
             cursor.execute("UPDATE clients SET status=1 WHERE chat_id={}".format(client_id))
             mydb.commit()
