@@ -315,6 +315,10 @@ def botactions():
                     callback.message.chat.id,
                     callback.message.message_id))
             for client_id, *_ in cursor:
+                cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(client_id))
+                for status, *_ in cursor:
+                    if status == 1:
+                        return
                 bot.send_message(int(client_id), "Ваш запрос удалился, потому что вы не связались с "
                                                  "в течение дня. Но вы можете записаться снова")
                 cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
