@@ -71,7 +71,7 @@ def start_polling():
         try:
             print("New bot instance")
             make_connection()
-            bot = telebot.TeleBot(TOKEN)
+            bot = telebot.TeleBot(TOKEN, threaded=False)
             botactions()
             bot.polling(none_stop=True)
         except Exception as ex:
