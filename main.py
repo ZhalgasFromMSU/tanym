@@ -14,38 +14,48 @@ from config import problem_types, TOKEN, db_user, db_password, pamyatka, conf_po
 #TODO перевести все тексты в отдельный файл
 #TODO оставить оценку
 
-mydb = mysql.connector.connect(
-    host='localhost',
-    user=db_user,
-    password=db_password,
-    database='tanym'
-)
+
+mydb, cursor = None, None
 
 
-cursor = mydb.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS psychologists ("
-               "problem_type VARCHAR(100), "
-               "client_sex INT, " #1 - муж/жен, 2 - жен, 3 - муж
-               "client_lang INT, " #1 - рус/каз, 2 - рус, 3 - каз
-               "chat_id VARCHAR(100), "
-               "name VARCHAR(100))")
+def make_connection():
+    global mydb, cursor
+    mydb = mysql.connector.connect(
+        host='localhost',
+        user=db_user,
+        password=db_password,
+        database='tanym'
+    )
 
-cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
-               "chat_id VARCHAR(100), "
-               "name VARCHAR(100), "
-               "city VARCHAR(100), "
-               "sex INT, " #2 - жен, 3 -муж
-               "age VARCHAR(30), "
-               "type VARCHAR(100), "
-               "description VARCHAR(300), "
-               "status INT, "
-               "review_score INT, "
-               "review VARCHAR(300))") # status 0 sent, 1 helped
+    cursor = mydb.cursor(buffered=True)
+    cursor.execute("CREATE TABLE IF NOT EXISTS psychologists ("
+                   "problem_type VARCHAR(100), "
+                   "client_sex INT, " #1 - муж/жен, 2 - жен, 3 - муж
+                   "client_lang INT, " #1 - рус/каз, 2 - рус, 3 - каз
+                   "chat_id VARCHAR(100), "
+                   "name VARCHAR(100))")
 
-cursor.execute("CREATE TABLE IF NOT EXISTS assignments ("
-               "client_id VARCHAR(100), "
-               "ps_chat_id VARCHAR(100), "
-               "msg_id VARCHAR(100))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
+                   "chat_id VARCHAR(100), "
+                   "name VARCHAR(100), "
+                   "city VARCHAR(100), "
+                   "sex INT, " #2 - жен, 3 -муж
+                   "age VARCHAR(30), "
+                   "type VARCHAR(100), "
+                   "description VARCHAR(300), "
+                   "status INT, "
+                   "review_score INT, "
+                   "review VARCHAR(300))") # status 0 sent, 1 helped
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS assignments ("
+                   "client_id VARCHAR(100), "
+                   "ps_chat_id VARCHAR(100), "
+                   "msg_id VARCHAR(100))")
+
+
+def close_connection():
+    cursor.close()
+    mydb.close()
 
 
 clients_dict = defaultdict(dict)
@@ -60,17 +70,15 @@ def start_polling():
     while True:
         try:
             print("New bot instance")
+            make_connection()
             bot = telebot.TeleBot(TOKEN)
             botactions()
             bot.polling(none_stop=True)
         except Exception as ex:
             print("Bot polling failed. Error:\n{}".format(ex))
+            close_connection()
             bot.stop_polling()
             sleep(30)
-        else:
-            bot.stop_polling()
-            print("Stopped polling")
-            break
 
 
 def botactions():
@@ -314,7 +322,7 @@ def botactions():
                 "SELECT client_id FROM assignments WHERE ps_chat_id={0} AND msg_id={1}".format(
                     callback.message.chat.id,
                     callback.message.message_id))
-            for client_id, *_ in cursor:
+            for client_id, *_ in cursor.fetchall():
                 cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(client_id))
                 for status, *_ in cursor:
                     if status == 1:
