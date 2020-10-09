@@ -328,7 +328,7 @@ def botactions():
                     if status == 1:
                         return
                 bot.send_message(int(client_id), "Ваш запрос удалился, потому что вы не связались с "
-                                                 "в течение дня. Но вы можете записаться снова")
+                                                 "психологом в течение дня. Но вы можете записаться снова")
                 cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
                 cursor.execute("DELETE FROM clients WHERE chat_id={}".format(client_id))
                 mydb.commit()
