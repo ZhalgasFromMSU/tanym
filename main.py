@@ -2,7 +2,7 @@ import telebot
 import json
 import mysql.connector
 import threading
-from time import sleep
+import time
 from telebot import types
 from collections import defaultdict
 from config import problem_types, TOKEN, db_user, db_password, pamyatka, conf_polit
@@ -29,6 +29,7 @@ def make_connection():
                    "name VARCHAR(100))")
 
     cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
+                   "cur_date DATETIME, "
                    "chat_id VARCHAR(100), "
                    "name VARCHAR(100), "
                    "city VARCHAR(100), "
@@ -71,7 +72,7 @@ def start_polling():
             print("Bot polling failed. Error:\n{}".format(ex))
             close_connection()
             bot.stop_polling()
-            sleep(30)
+            time.sleep(30)
 
 
 def botactions():
@@ -207,9 +208,10 @@ def botactions():
 
     def register_client(client, chat_id):
         cmd = ("INSERT INTO clients "
-              "(chat_id, name, city, sex, age, type, description, status, review) "
-              "VALUES (%s, %s, %s, %s, %s, %s, %s, 0, '')")
-        vals = (chat_id,
+              "(cur_date, chat_id, name, city, sex, age, type, description, status, review) "
+              "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, '')")
+        vals = (time.strftime('%Y-%m-%d %H:%M:%S'),
+                chat_id,
                 client['name'][:98],
                 client['city'][:98],
                 client['sex'],
@@ -496,7 +498,7 @@ polling_thread.start()
 if __name__ == "__main__":
     while True:
         try:
-            sleep(120)
+            time.sleep(120)
         except KeyboardInterrupt:
             cursor.close()
             mydb.close()
