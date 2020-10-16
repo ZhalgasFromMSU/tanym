@@ -7,45 +7,48 @@ from telebot import types
 from collections import defaultdict
 from config import problem_types, TOKEN, db_user, db_password, pamyatka, conf_polit
 
-#TODO clients_dict и doctors_dict будут жрать память, пока не закончится регистрация
-#TODO предупреждать клиента, если врача не нашли, попросить поменять параметры
-#TODO сразу писать всем психологам, если клиентку взяли
-#TODO разбить все get функции на ask и save
-#TODO перевести все тексты в отдельный файл
-#TODO оставить оценку
 
-mydb = mysql.connector.connect(
-    host='localhost',
-    user=db_user,
-    password=db_password,
-    database='tanym'
-)
+mydb, cursor = None, None
 
 
-cursor = mydb.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS psychologists ("
-               "problem_type VARCHAR(100), "
-               "client_sex INT, " #1 - муж/жен, 2 - жен, 3 - муж
-               "client_lang INT, " #1 - рус/каз, 2 - рус, 3 - каз
-               "chat_id VARCHAR(100), "
-               "name VARCHAR(100))")
+def make_connection():
+    global mydb, cursor
+    mydb = mysql.connector.connect(
+        host='localhost',
+        user=db_user,
+        password=db_password,
+        database='tanym'
+    )
 
-cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
-               "chat_id VARCHAR(100), "
-               "name VARCHAR(100), "
-               "city VARCHAR(100), "
-               "sex INT, " #2 - жен, 3 -муж
-               "age VARCHAR(30), "
-               "type VARCHAR(100), "
-               "description VARCHAR(1000), "
-               "status INT, "
-               "review_score INT, "
-               "review VARCHAR(1000))") # status 0 sent, 1 helped
+    cursor = mydb.cursor(buffered=True)
+    cursor.execute("CREATE TABLE IF NOT EXISTS psychologists ("
+                   "problem_type VARCHAR(100), "
+                   "client_sex INT, " #1 - муж/жен, 2 - жен, 3 - муж
+                   "client_lang INT, " #1 - рус/каз, 2 - рус, 3 - каз
+                   "chat_id VARCHAR(100), "
+                   "name VARCHAR(100))")
 
-cursor.execute("CREATE TABLE IF NOT EXISTS assignments ("
-               "client_id VARCHAR(100), "
-               "ps_chat_id VARCHAR(100), "
-               "msg_id VARCHAR(100))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
+                   "chat_id VARCHAR(100), "
+                   "name VARCHAR(100), "
+                   "city VARCHAR(100), "
+                   "sex INT, " #2 - жен, 3 -муж
+                   "age VARCHAR(30), "
+                   "type VARCHAR(100), "
+                   "description VARCHAR(1000), "
+                   "status INT, "
+                   "review_score INT, "
+                   "review VARCHAR(1000))") # status 0 sent, 1 helped
+
+    cursor.execute("CREATE TABLE IF NOT EXISTS assignments ("
+                   "client_id VARCHAR(100), "
+                   "ps_chat_id VARCHAR(100), "
+                   "msg_id VARCHAR(100))")
+
+
+def close_connection():
+    cursor.close()
+    mydb.close()
 
 
 clients_dict = defaultdict(dict)
@@ -60,17 +63,15 @@ def start_polling():
     while True:
         try:
             print("New bot instance")
-            bot = telebot.TeleBot(TOKEN)
+            make_connection()
+            bot = telebot.TeleBot(TOKEN, threaded=False)
             botactions()
             bot.polling(none_stop=True)
         except Exception as ex:
             print("Bot polling failed. Error:\n{}".format(ex))
+            close_connection()
             bot.stop_polling()
             sleep(30)
-        else:
-            bot.stop_polling()
-            print("Stopped polling")
-            break
 
 
 def botactions():
@@ -90,13 +91,11 @@ def botactions():
             bot.register_next_step_handler(message, get_password)
         elif message.text.startswith("М"):
             cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(message.chat.id))
-            status = -1
-            for st, *_ in cursor:
-                status = st
-            if status == 1:
-                bot.send_message(message.chat.id, "Вы уже обращались в Таным. "
-                                                  "В рамках проекта вы можете записаться только один раз")
-                return
+            for status, *_ in cursor:
+                if status == 1:
+                    bot.send_message(message.chat.id, "Вы уже обращались в Таным. "
+                                                      "В рамках проекта вы можете записаться только один раз")
+                    return
             else:
                 cursor.execute("DELETE FROM clients WHERE chat_id={}".format(message.chat.id))
                 cursor.execute("DELETE FROM assignments WHERE client_id={}".format(message.chat.id))
@@ -315,29 +314,37 @@ def botactions():
                 "SELECT client_id FROM assignments WHERE ps_chat_id={0} AND msg_id={1}".format(
                     callback.message.chat.id,
                     callback.message.message_id))
-            for client_id, *_ in cursor:
+            for client_id, *_ in cursor.fetchall():
+                cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(client_id))
+                for status, *_ in cursor:
+                    if status == 1:
+                        return
                 bot.send_message(int(client_id), "Ваш запрос удалился, потому что вы не связались с "
-                                                 "в течение дня. Но вы можете записаться снова")
+                                                 "психологом в течение дня. Но вы можете записаться снова")
                 cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
                 cursor.execute("DELETE FROM clients WHERE chat_id={}".format(client_id))
                 mydb.commit()
-                bot.delete_message(callback.message.chat.id, callback.message.message_id)
+                try:
+                    bot.delete_message(callback.message.chat.id, callback.message.message_id)
+                except Exception as err:
+                    print(err)
         elif callback.data == "PsHelped":
             cursor.execute(
                 "SELECT client_id FROM assignments WHERE ps_chat_id={0} AND msg_id={1}".format(
                     callback.message.chat.id,
                     callback.message.message_id))
-            for client_id, *_ in cursor:
+            for client_id, *_ in cursor.fetchall():
                 cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(client_id))
-                status = -1
-                for tmp_status, *_ in cursor:
-                    status = tmp_status
-                if status == 1:
-                    return
+                for status, *_ in cursor:
+                    if status == 1:
+                        return
                 cursor.execute("UPDATE clients SET status=1 WHERE chat_id={}".format(client_id))
                 mydb.commit()
                 ask_client_review_score(int(client_id))
-                break
+                try:
+                    bot.delete_message(callback.message.chat.id, callback.message.message_id)
+                except Exception as err:
+                    print(err)
 
 
     @bot.callback_query_handler(func=lambda callback: callback.data in ('Reject', 'Helped'))
@@ -346,22 +353,17 @@ def botactions():
             bot.edit_message_reply_markup(
                 chat_id=callback.message.chat.id,
                 message_id=callback.message.message_id)
-        except Exception:
-            pass
+        except Exception as exp:
+            print("InException ", exp)
         client_id = callback.message.chat.id
-        checker = -1
-        cursor.execute("SELECT * FROM assignments WHERE client_id={}".format(client_id))
-        for cl, *_ in cursor:
-            checker = cl
-        if int(checker) != int(client_id):
-            return
+        cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(client_id))
+        for status, *_ in cursor:
+            if status == 1:
+                return
         if callback.data == 'Helped':
             cursor.execute("UPDATE clients SET status=1 WHERE chat_id={}".format(client_id))
             mydb.commit()
-            bot.send_message(client_id, "Не забудьте оплатить консультацию")
-            msg = bot.send_message(client_id, "По шкале от 1 до 3, оцените ваши ощущения от обращения\n"
-                                                   "1 - не очень, 2 - хорошо, 3 - отлично")
-            bot.register_next_step_handler(msg, review_score)
+            ask_client_review_score(int(client_id))
         elif callback.data == 'Reject':
             cursor.execute("SELECT ps_chat_id, msg_id FROM assignments WHERE client_id={}".format(client_id))
             for ps_chat, msg_id in cursor:
@@ -374,7 +376,14 @@ def botactions():
             bot.send_message(client_id, "Если вы решите обратиться снова, то введите '/start'")
 
 
-    def review_score(message):
+    def ask_client_review_score(chat_id):
+        bot.send_message(chat_id, "Не забудьте оплатить консультацию")
+        msg = bot.send_message(chat_id, "По шкале от 1 до 3, оцените ваши ощущения от обращения\n"
+                                        "1 - не очень, 2 - хорошо, 3 - отлично")
+        bot.register_next_step_handler(msg, get_client_review_score)
+
+
+    def get_client_review_score(message):
         score = 3
         try:
             score = int(message.text)
