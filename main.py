@@ -29,7 +29,7 @@ def make_connection():
                    "name VARCHAR(100))")
 
     cursor.execute("CREATE TABLE IF NOT EXISTS clients ("
-                   "cur_date DATETIME, "
+                   "date DATETIME, "
                    "chat_id VARCHAR(100), "
                    "name VARCHAR(100), "
                    "city VARCHAR(100), "
@@ -208,7 +208,7 @@ def botactions():
 
     def register_client(client, chat_id):
         cmd = ("INSERT INTO clients "
-              "(cur_date, chat_id, name, city, sex, age, type, description, status, review) "
+              "(date, chat_id, name, city, sex, age, type, description, status, review) "
               "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 0, '')")
         vals = (time.strftime('%Y-%m-%d %H:%M:%S'),
                 chat_id,
