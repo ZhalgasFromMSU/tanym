@@ -94,7 +94,7 @@ def botactions():
             cursor.execute("SELECT status FROM clients WHERE chat_id={}".format(message.chat.id))
             for status, *_ in cursor:
                 if status == 1:
-                    bot.send_message(message.chat.id, "Вы уже обращались в Таным. "
+                    bot.send_message(message.chat.id, "Вы уже обращались в Tanym. "
                                                       "В рамках проекта вы можете записаться только один раз")
                     return
             else:
@@ -141,7 +141,7 @@ def botactions():
 
 
     def ask_client_age(chat_id):
-        msg = bot.send_message(chat_id, 'Ваш возраст? (напишите цифрами, например 29)')
+        msg = bot.send_message(chat_id, 'Ваш возраст? (напишите цифрами, например, 29)')
         bot.register_next_step_handler(msg, get_client_age)
 
 
@@ -375,12 +375,12 @@ def botactions():
             cursor.execute("DELETE FROM clients WHERE chat_id={}".format(client_id))
             cursor.execute("DELETE FROM assignments WHERE client_id={}".format(client_id))
             mydb.commit()
-            bot.send_message(client_id, "Если вы решите обратиться снова, то введите '/start'")
+            bot.send_message(client_id, "Если вы решите обратиться снова, введите '/start'")
 
 
     def ask_client_review_score(chat_id):
         bot.send_message(chat_id, "Не забудьте оплатить консультацию")
-        msg = bot.send_message(chat_id, "По шкале от 1 до 3, оцените ваши ощущения от обращения\n"
+        msg = bot.send_message(chat_id, "По шкале от 1 до 3 оцените ваши ощущения от обращения\n"
                                         "1 - не очень, 2 - хорошо, 3 - отлично")
         bot.register_next_step_handler(msg, get_client_review_score)
 
@@ -395,7 +395,7 @@ def botactions():
             pass
         cursor.execute("UPDATE clients SET review_score={0} WHERE chat_id={1}".format(score, message.chat.id))
         mydb.commit()
-        msg = bot.send_message(message.chat.id, "Оставьте, пожалуйста, отзыв. Они помогают нам развиваться")
+        msg = bot.send_message(message.chat.id, "Оставьте, пожалуйста, отзыв. Он поможет нам стать лучше")
         bot.register_next_step_handler(msg, review_review)
 
 
@@ -447,7 +447,7 @@ def botactions():
             doctors_dict[message.chat.id]['client_sex'] = sexes.index(message.text) + 1
         else:
             doctors_dict[message.chat.id]['client_sex'] = 1
-        choose_text = ("Введите через пробел темы, в с которыми Вы работаете (например: 3 8 13), "
+        choose_text = ("Введите через пробел темы, с которыми Вы работаете (например, 3 8 13), "
                       "введите 0, если не хотите ничего добавлять:\n{0}".format(
             "\n".join("{0}) {1}".format(i + 1, name) for i, name in enumerate(problem_types))))
         bot.send_message(message.chat.id, choose_text)
