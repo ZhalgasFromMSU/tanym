@@ -238,8 +238,11 @@ def botactions():
         for chat, sex, lang in cursor:
             if client['sex'] % sex != 0 or client['lang'] % lang != 0:
                 continue
-            msg = bot.send_message(int(chat), message_text, reply_markup=keyboard)
-            vals.append((chat_id, msg.chat.id, msg.message_id))
+            try:
+                msg = bot.send_message(int(chat), message_text, reply_markup=keyboard)
+                vals.append((chat_id, msg.chat.id, msg.message_id))
+            except Exception as e:
+                print("{0}, chat_id:{1}".format(e, chat))
         if len(vals) == 0:
             return False
         cursor.executemany(cmd, vals)
