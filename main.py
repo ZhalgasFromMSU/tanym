@@ -170,7 +170,7 @@ def botactions():
         ask_client_problem(message.chat.id)
 
 
-    def ask_client_problem(chat_id):
+    def ask_client_problem(chat_id, text='Какая у вас проблема? Выберите из списка'):
         keyboard = types.ReplyKeyboardMarkup(one_time_keyboard=True)
         for problem_type in problem_types:
             keyboard.row(problem_type)
@@ -181,7 +181,11 @@ def botactions():
 
 
     def get_client_problem(message):
-        clients_dict[message.chat.id]['type'] = message.text
+        if message.text in problem_types:
+            clients_dict[message.chat.id]['type'] = message.text
+        else:
+            ask_client_problem(message.chat.id, 'Выберите проблему из списка! '
+                                                'Список открывается вместо клавиатуры')
         ask_client_pr_descr(message.chat.id)
 
 
